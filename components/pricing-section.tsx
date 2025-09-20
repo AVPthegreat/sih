@@ -6,41 +6,41 @@ import { useState } from "react"
 
 const pricingPlans = [
   {
-    name: "Starter",
+    name: "🆓 Free Plan",
     price: "Free",
-    description: "Perfect for getting started with v0",
-    features: ["5 components per month", "Basic templates", "Community support", "Standard components"],
+    description: "Students just exploring",
+    features: ["Access to basic college directory (limited results per day, 5 lookups).", "Limited career assessment quiz (1 attempt, shorter version).", "Access to sample AI career guidance (very restricted 2–3 queries).", "No saved history or dashboard personalization."],
     popular: false,
     cta: "Get Started",
   },
   {
-    name: "Pro",
+    name: "💼 Pro Plan",
     monthlyPrice: 29,
     annualPrice: 24,
-    description: "For professionals building serious projects",
+    description: "Active students preparing for careers",
     features: [
-      "Unlimited components",
-      "Premium templates",
-      "Priority support",
-      "Advanced animations",
-      "Custom themes",
-      "Export to GitHub",
+      "Everything in Free Plan and",
+      "Unlimited college directory searches.",
+      "Full career assessment quiz with detailed report.",
+      "AI agent with higher daily queries (50–100 per month).",
+      "Personalized dashboard (save colleges, track applications, compare options).",
+      "Email alerts for admission/cutoff notifications.",
     ],
     popular: true,
     cta: "Start Free Trial",
   },
   {
-    name: "Team",
+    name: "🌟 Premium Plan",
     monthlyPrice: 99,
     annualPrice: 79,
-    description: "For teams collaborating on projects",
+    description: "Serious students & parents",
     features: [
-      "Everything in Pro",
-      "Team collaboration",
-      "Shared component library",
-      "Advanced analytics",
-      "Custom integrations",
-      "Dedicated support",
+      "All Pro features and ",
+      "Unlimited AI queries (within fair use).",
+      "One-on-one mentorship session per month (video or chat with counselor).",
+      "Exclusive insights: placement data, fee comparisons, alumni reviews.",
+      "Priority support.",
+      "Possible add-on features: scholarship alerts, career roadmap generator.",
     ],
     popular: false,
     cta: "Contact Sales",
@@ -77,7 +77,7 @@ export function PricingSection() {
           </h2>
 
           <p className="text-lg text-white/60 max-w-2xl mx-auto mb-8">
-            Start building beautiful components today. Upgrade anytime as your needs grow.
+            Start exploring your career path today. Upgrade anytime as your goals and aspirations grow.
           </p>
 
           {/* Monthly/Annual Toggle */}
@@ -176,7 +176,7 @@ export function PricingSection() {
         </div>
 
         {/* Bottom CTA */}
-        <motion.div
+        {/* <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
@@ -191,7 +191,7 @@ export function PricingSection() {
           >
             Contact our sales team →
           </motion.button>
-        </motion.div>
+        </motion.div> */}
       </div>
     </section>
   )

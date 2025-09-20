@@ -2,64 +2,67 @@ import { Marquee } from "@/components/magicui/marquee"
 
 const testimonials = [
   {
-    name: "Arjun Mehta",
-    username: "@arjdev",
-    body: "v0 has completely changed the way I build UIs. Generate, copy-paste, done. No more design stress.",
-    img: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face",
+    name: "Ananya Singh",
+    username: "@ananya_career",
+    body: "This platform gave me clarity about my future career. The AI-guided assessments are spot on!",
+    img: "AS",
   },
   {
-    name: "Sara Lin",
-    username: "@sara.codes",
-    body: "Honestly shocked at how smooth the v0 generated components are out of the box. Just works perfectly.",
-    img: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&h=150&fit=crop&crop=face",
+    name: "Rohan Mehta",
+    username: "@rohanpaths",
+    body: "I loved the personalized career roadmap. The suggestions really match my interests and strengths.",
+    img: "RM",
   },
   {
-    name: "Devon Carter",
-    username: "@devninja",
-    body: "Our team launched a client site in 2 days using v0 components. Saved so much development time.",
-    img: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=face",
+    name: "Priya Kapoor",
+    username: "@priyastudyguide",
+    body: "The human-researched data makes all the guidance reliable. I now know exactly which colleges to target.",
+    img: "PK",
   },
   {
-    name: "Priya Shah",
-    username: "@priyacodes",
-    body: "Generated a few components in v0 and everything blended perfectly with our codebase. Massive W.",
-    img: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop&crop=face",
+    name: "Amit Verma",
+    username: "@amit_futureplan",
+    body: "The skill gap analysis was a game-changer. I could focus on areas that matter the most for my career.",
+    img: "AV",
   },
   {
-    name: "Leo Martin",
-    username: "@leobuilds",
-    body: "Found a beautiful hero section in v0, tweaked the prompt, and shipped in 15 minutes. Game changer.",
-    img: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face",
+    name: "Neha Sharma",
+    username: "@neha_careerhub",
+    body: "I never knew career guidance could be this personalized. The learning pathways are perfectly structured.",
+    img: "NS",
   },
   {
-    name: "Chloe Winters",
-    username: "@chloewinters",
-    body: "v0 helped us prototype multiple landing pages without writing CSS once. Pure magic.",
-    img: "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&h=150&fit=crop&crop=face",
+    name: "Siddharth Jain",
+    username: "@sid_paths",
+    body: "Connecting with mentors through the platform gave me real insights about my dream job. Highly recommend it!",
+    img: "SJ",
   },
   {
-    name: "Ayaan Malik",
-    username: "@ayaan_dev",
-    body: "As a solo founder, v0 lets me move fast without sacrificing design quality. Essential tool.",
-    img: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop&crop=face",
+    name: "Isha Reddy",
+    username: "@isha_mentor",
+    body: "The AI agents are amazing! They gave me precise guidance based on verified college and student data.",
+    img: "IR",
   },
   {
-    name: "Monica Reeves",
-    username: "@monicareeves",
-    body: "Can't believe how polished the v0 generated components look. Clients are impressed every time.",
-    img: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&h=150&fit=crop&crop=face",
+    name: "Karan Gupta",
+    username: "@karan_careerwise",
+    body: "I loved the progress tracking feature. It kept me motivated and focused on improving my skills.",
+    img: "KG",
   },
   {
-    name: "James Roy",
-    username: "@jamesrdev",
-    body: "v0 is a lifesaver when deadlines are tight. Generate a component, tweak, and deploy instantly.",
-    img: "https://images.unsplash.com/photo-1507591064344-4c6ce005b128?w=150&h=150&fit=crop&crop=face",
+    name: "Tanya Malhotra",
+    username: "@tanya_futurepath",
+    body: "This platform is unique! No other guidance system gives such detailed career insights and mentorship options.",
+    img: "TM",
   },
 ]
+
 
 const firstColumn = testimonials.slice(0, 3)
 const secondColumn = testimonials.slice(3, 6)
 const thirdColumn = testimonials.slice(6, 9)
+
+
 
 const TestimonialCard = ({
   img,
@@ -78,8 +81,12 @@ const TestimonialCard = ({
 
       <div className="text-white/90 leading-relaxed">{body}</div>
 
-      <div className="mt-5 flex items-center gap-2">
-        <img src={img || "/placeholder.svg"} alt={name} height="40" width="40" className="h-10 w-10 rounded-full" />
+      <div className="mt-5 flex items-center gap-3">
+        {/* Replace <img> with initials avatar */}
+        <div className="w-12 h-12 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold text-lg">
+          {img}
+        </div>
+
         <div className="flex flex-col">
           <div className="leading-5 font-medium tracking-tight text-white">{name}</div>
           <div className="leading-5 tracking-tight text-white/60">{username}</div>
@@ -88,6 +95,7 @@ const TestimonialCard = ({
     </div>
   )
 }
+
 
 export function TestimonialsSection() {
   return (
@@ -112,6 +120,7 @@ export function TestimonialsSection() {
             From intuitive design to powerful features, our app has become an essential tool for users around the world.
           </p>
         </div>
+        
 
         <div className="my-16 flex max-h-[738px] justify-center gap-6 overflow-hidden [mask-image:linear-gradient(to_bottom,transparent,black_25%,black_75%,transparent)]">
           <div>
