@@ -8,6 +8,8 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { supabase } from "@/lib/supabaseClient"
+
 
 export default function SignupPage() {
   const [formData, setFormData] = useState({
@@ -17,6 +19,8 @@ export default function SignupPage() {
     confirmPassword: "",
   })
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
+  const [success, setSuccess] = useState(false)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData((prev) => ({
@@ -27,15 +31,55 @@ export default function SignupPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setError("")
+    setSuccess(false)
+    
+    // Validate passwords match
     if (formData.password !== formData.confirmPassword) {
-      console.log("[v0] Password mismatch")
+      setError("Passwords do not match")
       return
     }
+    
+    // Validate password length
+    if (formData.password.length < 6) {
+      setError("Password must be at least 6 characters long")
+      return
+    }
+    
     setIsLoading(true)
-    // Simulate signup process
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    setIsLoading(false)
-    console.log("[v0] Signup attempt:", formData)
+    
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            full_name: formData.name,
+          }
+        }
+      })
+      
+      if (error) {
+        setError(error.message)
+      } else if (data.user) {
+        setSuccess(true)
+        // Clear form
+        setFormData({
+          name: "",
+          email: "",
+          password: "",
+          confirmPassword: "",
+        })
+        // Redirect to login page after 2 seconds
+        setTimeout(() => {
+          window.location.href = "/login"
+        }, 4000)
+      }
+    } catch (err) {
+      setError("An unexpected error occurred. Please try again.")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -76,6 +120,30 @@ export default function SignupPage() {
           transition={{ duration: 0.5, delay: 0.1 }}
           className="bg-zinc-900/50 backdrop-blur-xl border border-zinc-800 rounded-2xl p-8"
         >
+          {/* Error Message */}
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg"
+            >
+              <p className="text-red-400 text-sm">{error}</p>
+            </motion.div>
+          )}
+
+          {/* Success Message */}
+          {success && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-4 p-3 bg-green-500/10 border border-green-500/20 rounded-lg"
+            >
+              <p className="text-green-400 text-sm">
+                Account created successfully! Please check your email and click the verification link to activate your account. You can then log in.
+              </p>
+            </motion.div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="name" className="text-white">
@@ -88,7 +156,8 @@ export default function SignupPage() {
                 placeholder="Enter your full name"
                 value={formData.name}
                 onChange={handleChange}
-                className="bg-zinc-800/50 border-zinc-700 text-white placeholder:text-zinc-500 focus:border-[#e78a53] focus:ring-[#e78a53]/20"
+                disabled={isLoading || success}
+                className="bg-zinc-800/50 border-zinc-700 text-white placeholder:text-zinc-500 focus:border-[#e78a53] focus:ring-[#e78a53]/20 disabled:opacity-50 disabled:cursor-not-allowed"
                 required
               />
             </div>
@@ -104,7 +173,8 @@ export default function SignupPage() {
                 placeholder="Enter your email"
                 value={formData.email}
                 onChange={handleChange}
-                className="bg-zinc-800/50 border-zinc-700 text-white placeholder:text-zinc-500 focus:border-[#e78a53] focus:ring-[#e78a53]/20"
+                disabled={isLoading || success}
+                className="bg-zinc-800/50 border-zinc-700 text-white placeholder:text-zinc-500 focus:border-[#e78a53] focus:ring-[#e78a53]/20 disabled:opacity-50 disabled:cursor-not-allowed"
                 required
               />
             </div>
@@ -120,7 +190,8 @@ export default function SignupPage() {
                 placeholder="Create a password"
                 value={formData.password}
                 onChange={handleChange}
-                className="bg-zinc-800/50 border-zinc-700 text-white placeholder:text-zinc-500 focus:border-[#e78a53] focus:ring-[#e78a53]/20"
+                disabled={isLoading || success}
+                className="bg-zinc-800/50 border-zinc-700 text-white placeholder:text-zinc-500 focus:border-[#e78a53] focus:ring-[#e78a53]/20 disabled:opacity-50 disabled:cursor-not-allowed"
                 required
               />
             </div>
@@ -136,7 +207,8 @@ export default function SignupPage() {
                 placeholder="Confirm your password"
                 value={formData.confirmPassword}
                 onChange={handleChange}
-                className="bg-zinc-800/50 border-zinc-700 text-white placeholder:text-zinc-500 focus:border-[#e78a53] focus:ring-[#e78a53]/20"
+                disabled={isLoading || success}
+                className="bg-zinc-800/50 border-zinc-700 text-white placeholder:text-zinc-500 focus:border-[#e78a53] focus:ring-[#e78a53]/20 disabled:opacity-50 disabled:cursor-not-allowed"
                 required
               />
             </div>
@@ -145,7 +217,8 @@ export default function SignupPage() {
               <input
                 type="checkbox"
                 id="terms"
-                className="mt-1 rounded border-zinc-700 bg-zinc-800 text-[#e78a53] focus:ring-[#e78a53]/20"
+                disabled={isLoading || success}
+                className="mt-1 rounded border-zinc-700 bg-zinc-800 text-[#e78a53] focus:ring-[#e78a53]/20 disabled:opacity-50 disabled:cursor-not-allowed"
                 required
               />
               <label htmlFor="terms" className="text-sm text-zinc-300">
@@ -162,10 +235,19 @@ export default function SignupPage() {
 
             <Button
               type="submit"
-              disabled={isLoading}
-              className="w-full bg-[#e78a53] hover:bg-[#e78a53]/90 text-white font-medium py-3 rounded-xl transition-colors"
+              disabled={isLoading || success}
+              className="w-full bg-[#e78a53] hover:bg-[#e78a53]/90 text-white font-medium py-3 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isLoading ? "Creating account..." : "Create account"}
+              {isLoading ? (
+                <div className="flex items-center space-x-2">
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span>Creating account...</span>
+                </div>
+              ) : success ? (
+                "Account Created!"
+              ) : (
+                "Create account"
+              )}
             </Button>
           </form>
 

@@ -8,19 +8,84 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { supabase } from "@/lib/supabaseClient"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
+  const [success, setSuccess] = useState(false)
+  const [showResendVerification, setShowResendVerification] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setError("")
+    setSuccess(false)
     setIsLoading(true)
-    // Simulate login process
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    setIsLoading(false)
-    console.log("[v0] Login attempt:", { email, password })
+    
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: password,
+      })
+      
+      // Debug: Log the actual error for troubleshooting
+      console.log("Login attempt result:", { data, error })
+      console.log("User email confirmed:", data?.user?.email_confirmed_at)
+      console.log("User status:", data?.user)
+      
+      if (error) {
+        // Handle specific error cases
+        if (error.message.includes("Email not confirmed")) {
+          setError("Please check your email and click the verification link before logging in.")
+          setShowResendVerification(true)
+        } else if (error.message.includes("Invalid login credentials")) {
+          setError("Invalid email or password. Please check your credentials or sign up if you don't have an account.")
+        } else if (error.message.includes("User not found")) {
+          setError("Account not found. Please sign up first.")
+        } else {
+          setError(error.message)
+        }
+      } else if (data.user) {
+        setSuccess(true)
+        // Redirect to dashboard after successful login
+        setTimeout(() => {
+          window.location.href = "/userdashboard"
+        }, 1500)
+      }
+    } catch (err) {
+      setError("An unexpected error occurred. Please try again.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleResendVerification = async () => {
+    if (!email) {
+      setError("Please enter your email address first.")
+      return
+    }
+    
+    setIsLoading(true)
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: email,
+      })
+      
+      if (error) {
+        setError(`Failed to resend verification: ${error.message}`)
+      } else {
+        setError("")
+        setSuccess(true)
+        setTimeout(() => setSuccess(false), 3000)
+      }
+    } catch (err) {
+      setError("Failed to resend verification email. Please try again.")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -52,7 +117,7 @@ export default function LoginPage() {
         <div className="text-center mb-8">
           <Link href="/" className="inline-block mb-6">
             <div className="flex items-center justify-center space-x-2">
-              <svg
+              {/* <svg
                 fill="currentColor"
                 viewBox="0 0 147 70"
                 xmlns="http://www.w3.org/2000/svg"
@@ -61,7 +126,7 @@ export default function LoginPage() {
               >
                 <path d="M56 50.2031V14H70V60.1562C70 65.5928 65.5928 70 60.1562 70C57.5605 70 54.9982 68.9992 53.1562 67.1573L0 14H19.7969L56 50.2031Z"></path>
                 <path d="M147 56H133V23.9531L100.953 56H133V70H96.6875C85.8144 70 77 61.1856 77 50.3125V14H91V46.1562L123.156 14H91V0H127.312C138.186 0 147 8.81439 147 19.6875V56Z"></path>
-              </svg>
+              </svg> */}
             </div>
           </Link>
           <h1 className="text-3xl font-bold text-white mb-2">Welcome back</h1>
@@ -75,6 +140,50 @@ export default function LoginPage() {
           transition={{ duration: 0.5, delay: 0.1 }}
           className="bg-zinc-900/50 backdrop-blur-xl border border-zinc-800 rounded-2xl p-8"
         >
+          {/* Error Message */}
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg"
+            >
+              <p className="text-red-400 text-sm">{error}</p>
+            </motion.div>
+          )}
+
+          {/* Success Message */}
+          {success && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-4 p-3 bg-green-500/10 border border-green-500/20 rounded-lg"
+            >
+              <p className="text-green-400 text-sm">
+                {showResendVerification ? "Verification email sent! Please check your inbox." : "Login successful! Redirecting to dashboard..."}
+              </p>
+            </motion.div>
+          )}
+
+          {/* Resend Verification Button */}
+          {showResendVerification && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg"
+            >
+              <p className="text-blue-400 text-sm mb-2">
+                Didn't receive the verification email?
+              </p>
+              <Button
+                onClick={handleResendVerification}
+                disabled={isLoading}
+                className="bg-blue-600 hover:bg-blue-700 text-white text-sm py-1 px-3"
+              >
+                Resend Verification Email
+              </Button>
+            </motion.div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="email" className="text-white">
@@ -86,7 +195,8 @@ export default function LoginPage() {
                 placeholder="Enter your email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="bg-zinc-800/50 border-zinc-700 text-white placeholder:text-zinc-500 focus:border-[#e78a53] focus:ring-[#e78a53]/20"
+                disabled={isLoading || success}
+                className="bg-zinc-800/50 border-zinc-700 text-white placeholder:text-zinc-500 focus:border-[#e78a53] focus:ring-[#e78a53]/20 disabled:opacity-50 disabled:cursor-not-allowed"
                 required
               />
             </div>
@@ -101,7 +211,8 @@ export default function LoginPage() {
                 placeholder="Enter your password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="bg-zinc-800/50 border-zinc-700 text-white placeholder:text-zinc-500 focus:border-[#e78a53] focus:ring-[#e78a53]/20"
+                disabled={isLoading || success}
+                className="bg-zinc-800/50 border-zinc-700 text-white placeholder:text-zinc-500 focus:border-[#e78a53] focus:ring-[#e78a53]/20 disabled:opacity-50 disabled:cursor-not-allowed"
                 required
               />
             </div>
@@ -110,7 +221,8 @@ export default function LoginPage() {
               <label className="flex items-center space-x-2 text-sm">
                 <input
                   type="checkbox"
-                  className="rounded border-zinc-700 bg-zinc-800 text-[#e78a53] focus:ring-[#e78a53]/20"
+                  disabled={isLoading || success}
+                  className="rounded border-zinc-700 bg-zinc-800 text-[#e78a53] focus:ring-[#e78a53]/20 disabled:opacity-50 disabled:cursor-not-allowed"
                 />
                 <span className="text-zinc-300">Remember me</span>
               </label>
@@ -121,10 +233,19 @@ export default function LoginPage() {
 
             <Button
               type="submit"
-              disabled={isLoading}
-              className="w-full bg-[#e78a53] hover:bg-[#e78a53]/90 text-white font-medium py-3 rounded-xl transition-colors"
+              disabled={isLoading || success}
+              className="w-full bg-[#e78a53] hover:bg-[#e78a53]/90 text-white font-medium py-3 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isLoading ? "Signing in..." : "Sign in"}
+              {isLoading ? (
+                <div className="flex items-center space-x-2">
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span>Signing in...</span>
+                </div>
+              ) : success ? (
+                "Login Successful!"
+              ) : (
+                "Sign in"
+              )}
             </Button>
           </form>
 
