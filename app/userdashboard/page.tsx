@@ -113,14 +113,14 @@ export default function UserDashboard() {
                 </div>
                 <div>
                   <h3 className="text-white font-semibold">Profile</h3>
-                  <p className="text-zinc-400 text-sm">Manage your account</p>
+                  <p className="text-zinc-400 text-sm">Manage and<br></br>Edit your account</p>
                 </div>
               </div>
-              <p className="text-zinc-300 text-sm mb-4">
+              {/* <p className="text-zinc-300 text-sm mb-4">
                 Update your profile information and preferences
-              </p>
+              </p> */}
               <Button className="w-full bg-[#e78a53] hover:bg-[#e78a53]/90 text-white">
-                View Profile
+                Edit Profile
               </Button>
             </motion.div>
 
@@ -138,15 +138,15 @@ export default function UserDashboard() {
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-white font-semibold">My Courses</h3>
-                  <p className="text-zinc-400 text-sm">Continue learning</p>
+                  <h3 className="text-white font-semibold">Assessment Status</h3>
+                  <p className="text-zinc-400 text-sm">Discover the career that suits you best. <br /> Take the quiz to begin your journey.</p>
                 </div>
               </div>
-              <p className="text-zinc-300 text-sm mb-4">
-                Access your enrolled courses and track progress
-              </p>
+              {/* <p className="text-zinc-300 text-sm mb-4">
+                check now!!!
+              </p> */}
               <Button className="w-full bg-[#e78a53] hover:bg-[#e78a53]/90 text-white">
-                View Courses
+                Take Assessment
               </Button>
             </motion.div>
 
@@ -164,15 +164,15 @@ export default function UserDashboard() {
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-white font-semibold">Progress</h3>
-                  <p className="text-zinc-400 text-sm">Track your achievements</p>
+                  <h3 className="text-white font-semibold">Your Recommended Careers</h3>
+                  <p className="text-zinc-400 text-sm">Based on your responses, here are <br /> the top career paths tailored to you.</p>
                 </div>
               </div>
-              <p className="text-zinc-300 text-sm mb-4">
+              {/* <p className="text-zinc-300 text-sm mb-4">
                 Monitor your learning progress and achievements
-              </p>
+              </p> */}
               <Button className="w-full bg-[#e78a53] hover:bg-[#e78a53]/90 text-white">
-                View Progress
+                View Reccomendations
               </Button>
             </motion.div>
           </div>
