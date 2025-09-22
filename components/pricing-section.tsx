@@ -35,9 +35,8 @@ const pricingPlans = [
     annualPrice: 79,
     description: "Serious students & parents",
     features: [
-      "All Pro features and ",
-      "Unlimited AI queries (within fair use).",
-      "One-on-one mentorship session per month (video or chat with counselor).",
+      "Unlimited AI queries.",
+      "One-on-one mentorship session per month (video with counselor).",
       "Exclusive insights: placement data, fee comparisons, alumni reviews.",
       "Priority support.",
       "Possible add-on features: scholarship alerts, career roadmap generator.",
@@ -129,7 +128,7 @@ export function PricingSection() {
               {plan.popular && (
                 <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
                   <div className="bg-gradient-to-r from-[#e78a53] to-[#e78a53]/80 text-white text-sm font-medium px-4 py-2 rounded-full">
-                    Most Popular
+                    Most loved
                   </div>
                 </div>
               )}
@@ -142,7 +141,7 @@ export function PricingSection() {
                   ) : (
                     <>
                       <span className="text-4xl font-bold text-white">
-                        ${isAnnual ? plan.annualPrice : plan.monthlyPrice}
+                      ₹{isAnnual ? plan.annualPrice : plan.monthlyPrice}
                       </span>
                       <span className="text-white/60 text-lg">{isAnnual ? "/year" : "/month"}</span>
                     </>

@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -17,6 +17,21 @@ export default function LoginPage() {
   const [error, setError] = useState("")
   const [success, setSuccess] = useState(false)
   const [showResendVerification, setShowResendVerification] = useState(false)
+
+  // If already signed in, redirect to dashboard to avoid re-login
+  useEffect(() => {
+    const checkExistingSession = async () => {
+      try {
+        const { data } = await supabase.auth.getUser()
+        if (data?.user) {
+          window.location.href = "/userdashboard"
+        }
+      } catch (e) {
+        // ignore and stay on login
+      }
+    }
+    checkExistingSession()
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

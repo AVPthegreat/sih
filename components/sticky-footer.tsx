@@ -109,8 +109,11 @@ export function StickyFooter() {
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.8, delay: 0.3 }}
             >
-              YB
+              <span>Y</span><span className=" sm:text-[100px] text-[60px]">ukti</span><span> B</span><span className=" sm:text-[100px] text-[60px]">harat</span>
             </motion.h2>
+
+
+    
           </div>
         </motion.div>
       )}

@@ -96,14 +96,12 @@ export function NewReleasePromo() {
               }}
               aria-hidden="true"
             >
-              skiper/ui
             </h1>
             <h1
               className="absolute inset-x-0 mt-[120px] text-center text-[100px] font-semibold text-primary sm:mt-[30px] sm:text-[190px] pointer-events-none"
               aria-hidden="true"
             >
-              skiper/ui
-            </h1>
+              </h1>
           </div>
         </div>
       </div>

@@ -61,7 +61,7 @@ export default function Features() {
         <FollowerPointerCard
           title={
             <div className="flex items-center gap-2">
-              <span>🐸</span>
+              {/* <span>emoji here</span> */}
               <span>Unlock Guidance</span>
             </div>
           }
@@ -99,11 +99,15 @@ export default function Features() {
                   >
                     {/* Background Image */}
                     <div className="absolute inset-0">
-                      <img
-                        // src="https://framerusercontent.com/images/UjqUIiBHmIcSH9vos9HlG2BF4bo.png"
-                        alt="Add image link in further development"
-                        className="w-full h-full object-cover rounded-xl"
-                      />
+                      <div className="relative w-full h-full">
+                        <img
+                          src="https://framerusercontent.com/images/UjqUIiBHmIcSH9vos9HlG2BF4bo.png"
+                          alt="Add image link in further development"
+                          className="absolute inset-0 w-full h-full object-cover rounded-xl bg-black/50 "
+                        />
+                        {/* <div className="absolute inset-0 bg-black/500 rounded-xl"></div> */}
+                      </div>
+
                     </div>
 
                     {/* Animated SVG Connecting Lines */}
@@ -185,7 +189,7 @@ export default function Features() {
                         </div>
 
                         {/* Center Logo */}
-                        <motion.div
+                        {/* <motion.div
                           className="w-16 h-16 border border-gray-300 rounded-lg overflow-hidden shadow-lg"
                           initial={{ opacity: 1, scale: 1 }}
                           animate={isCliHovering ? { scale: [1, 1.1, 1] } : { scale: 1 }}
@@ -193,11 +197,11 @@ export default function Features() {
                           whileHover={{ scale: 1.1, rotate: 5 }}
                         >
                           <img
-                            src="https://cdn.imgbin.com/15/12/10/doraemon-happy-doraemon-character-6SHRFEFz.jpg"
+                            src="/yb-removebg-preview.png"
                             alt="Logo"
                             className="w-full h-full object-cover"
                           />
-                        </motion.div>
+                        </motion.div> */}
 
                         {/* Right Column */}
                         <div className="flex flex-col gap-3">
@@ -428,7 +432,7 @@ export default function Features() {
                   <h3 className="text-2xl leading-none font-semibold tracking-tight">Human Researched Data​</h3>
                   <div className="text-md text-muted-foreground flex flex-col gap-2 text-sm">
                     <p className="max-w-[460px]">
-                      Powered by human-researched data collected from official sources, college websites, and real student insights to deliver accurate guidance and career advice.                    
+                      Powered by human-researched data collected from official sources, college websites, and real student insights to deliver accurate guidance and career advice.
                     </p>
                   </div>
                 </div>
