@@ -225,6 +225,47 @@ export default function Features() {
     setAiError("")
   }
 
+  // Helper function to send message to Yukti via n8n webhook
+  const sendMessageToYukti = async (userId: string, userMessage: string) => {
+    try {
+      console.log('Sending to Yukti webhook:', { userId, userMessage })
+      
+      const response = await fetch("https://ebelthomasseiko.app.n8n.cloud/webhook/9a773b80-38c9-455f-bb27-6a9295197519", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: userId,
+          message: userMessage
+        })
+      })
+      
+      console.log('Webhook response status:', response.status)
+      console.log('Webhook response headers:', response.headers)
+      
+      if (!response.ok) {
+        // Try to get error details from response
+        let errorDetails = `HTTP error! status: ${response.status}`
+        try {
+          const errorText = await response.text()
+          console.log('Error response body:', errorText)
+          if (errorText) {
+            errorDetails += ` - ${errorText}`
+          }
+        } catch (e) {
+          console.log('Could not read error response:', e)
+        }
+        throw new Error(errorDetails)
+      }
+      
+      const data = await response.json()
+      console.log('Webhook response data:', data)
+      return data
+    } catch (error) {
+      console.error('sendMessageToYukti error:', error)
+      throw error
+    }
+  }
+
   const handleAsk = async () => {
     const prompt = inputValue.trim()
     if (!prompt) return
@@ -241,30 +282,76 @@ export default function Features() {
     
     setAiLoading(true)
     try {
-      const res = await fetch("/api/ai", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        const more = typeof data?.details === "string" ? data.details : JSON.stringify(data?.details)
-        setAiError((data?.error || "Failed to get response") + (more ? `: ${more}` : ""))
-      } else {
-        const botMsg = { id: `${Date.now()}-a`, role: "assistant" as const, content: data?.reply || "" }
+      // Try n8n webhook first
+      const data = await sendMessageToYukti(currentUser.id, prompt)
+      
+      if (data?.reply) {
+        const botMsg = { id: `${Date.now()}-a`, role: "assistant" as const, content: data.reply }
         setMessages((prev) => [...prev, botMsg])
         void saveMessagesToSupabase([userMsg, botMsg]).catch(() => {})
         // Only speak if the input was from voice
         if (isVoiceInput) {
-          speakText(data?.reply || "")
+          speakText(data.reply)
         }
         // Reload chat history after new message
         if (currentUser) {
           loadChatHistory(currentUser.id)
         }
+      } else {
+        setAiError("No reply received from Yukti")
       }
     } catch (e: any) {
-      setAiError(e?.message || "Unexpected error")
+      console.error('Webhook failed, trying fallback:', e)
+      
+      // Fallback to old Gemini API if webhook fails
+      try {
+        console.log('Attempting fallback to Gemini API...')
+        const res = await fetch("/api/ai", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt }),
+        })
+        const fallbackData = await res.json()
+        
+        if (res.ok && fallbackData?.reply) {
+          const botMsg = { id: `${Date.now()}-a`, role: "assistant" as const, content: fallbackData.reply }
+          setMessages((prev) => [...prev, botMsg])
+          void saveMessagesToSupabase([userMsg, botMsg]).catch(() => {})
+          // Only speak if the input was from voice
+          if (isVoiceInput) {
+            speakText(fallbackData.reply)
+          }
+          // Reload chat history after new message
+          if (currentUser) {
+            loadChatHistory(currentUser.id)
+          }
+          // Show a note that we used fallback
+          setAiError("⚠️ Yukti webhook is temporarily unavailable. Using backup system.")
+        } else {
+          setAiError(`Failed to get response: ${e?.message || 'Unknown error'}`)
+        }
+      } catch (fallbackError: any) {
+        console.error('Fallback also failed:', fallbackError)
+        
+        // Ultimate fallback - provide a simple response
+        const fallbackReply = `Hi there! 👋 I'm Yukti, your career guidance assistant. I'm currently experiencing some technical difficulties, but I'm here to help you explore career paths and opportunities. What would you like to know about your future career?`
+        
+        const botMsg = { id: `${Date.now()}-a`, role: "assistant" as const, content: fallbackReply }
+        setMessages((prev) => [...prev, botMsg])
+        void saveMessagesToSupabase([userMsg, botMsg]).catch(() => {})
+        
+        // Only speak if the input was from voice
+        if (isVoiceInput) {
+          speakText(fallbackReply)
+        }
+        
+        // Reload chat history after new message
+        if (currentUser) {
+          loadChatHistory(currentUser.id)
+        }
+        
+        setAiError("⚠️ External services are temporarily unavailable. Using basic responses.")
+      }
     } finally {
       setAiLoading(false)
       setIsVoiceInput(false) // Reset voice input flag
@@ -515,9 +602,9 @@ export default function Features() {
                               whileHover={{ scale: 1.05 }}
                             >
                               <div className="w-4 h-4 flex items-center justify-center">
-                                {index === 0 && <span className="text-xs">🎃</span>}
-                                {index === 1 && <span className="text-xs">🖕🏻</span>}
-                                {index === 2 && <span className="text-xs">🐥</span>}
+                                {index === 0 && <span className="text-xs">😉</span>}
+                                {index === 1 && <span className="text-xs">😁</span>}
+                                {index === 2 && <span className="text-xs">😊</span>}
                               </div>
                               {item}
                             </motion.div>

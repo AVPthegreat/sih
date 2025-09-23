@@ -15,8 +15,8 @@ const pricingPlans = [
   },
   {
     name: "💼 Pro Plan",
-    monthlyPrice: 29,
-    annualPrice: 24,
+    monthlyPrice: 9,
+    annualPrice: 29,
     description: "Active students preparing for careers",
     features: [
       "Everything in Free Plan and",
@@ -31,7 +31,7 @@ const pricingPlans = [
   },
   {
     name: "🌟 Premium Plan",
-    monthlyPrice: 99,
+    monthlyPrice: 29,
     annualPrice: 79,
     description: "Serious students & parents",
     features: [
