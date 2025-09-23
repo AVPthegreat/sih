@@ -1,6 +1,8 @@
 "use client"
 import { motion, AnimatePresence } from "framer-motion"
 import { useState, useEffect } from "react"
+import { Badge } from "@/components/ui/badge"
+import { Sparkles } from "lucide-react"
 
 export function StickyFooter() {
   const [isAtBottom, setIsAtBottom] = useState(false)
@@ -15,7 +17,6 @@ export function StickyFooter() {
           const windowHeight = window.innerHeight
           const documentHeight = document.documentElement.scrollHeight
           const isNearBottom = scrollTop + windowHeight >= documentHeight - 100
-
           setIsAtBottom(isNearBottom)
           ticking = false
         })
@@ -108,12 +109,17 @@ export function StickyFooter() {
               initial={{ opacity: 0, x: -100 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.8, delay: 0.3 }}
-            >
-              <span>Y</span><span className=" sm:text-[100px] text-[60px]">ukti</span><span> B</span><span className=" sm:text-[100px] text-[60px]">harat</span>
+              >
+                <div className="relative">
+                  <div className="absolute -top-1 left-0 text-sm text-black-600 flex items-center gap-0.4 z-10">
+                    <Sparkles className="h-4 w-4" />
+                    <span>Yukti Bharat - A career compass for India's Youth</span>
+                  </div>
+                  <div>
+                    <span>Y</span><span className=" sm:text-[100px] text-[60px]">ukti</span><span> B</span><span className=" sm:text-[100px] text-[60px]">harat</span>
+                  </div>
+                </div>
             </motion.h2>
-
-
-    
           </div>
         </motion.div>
       )}

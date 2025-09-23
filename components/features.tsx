@@ -10,6 +10,7 @@ import { motion, useInView } from "framer-motion"
 import { Suspense, useEffect, useRef, useState } from "react"
 import { geist } from "@/lib/fonts"
 import { cn } from "@/lib/utils"
+import { supabase } from "@/lib/supabaseClient"
 
 export default function Features() {
   const ref = useRef(null)
@@ -20,6 +21,21 @@ export default function Features() {
   const [isFeature3Hovering, setIsFeature3Hovering] = useState(false)
   const [isFeature4Hovering, setIsFeature4Hovering] = useState(false)
   const [inputValue, setInputValue] = useState("")
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState<string>("")
+  const [messages, setMessages] = useState<Array<{ id: string; role: "user" | "assistant"; content: string }>>([])
+  const [threadId, setThreadId] = useState<string>("")
+  const [currentUser, setCurrentUser] = useState<any>(null)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const [isListening, setIsListening] = useState(false)
+  const [isSpeaking, setIsSpeaking] = useState(false)
+  const [isPopupOpen, setIsPopupOpen] = useState(false)
+  const [chatHistory, setChatHistory] = useState<Array<{ id: string; role: "user" | "assistant"; content: string; created_at: string; thread_id: string }>>([])
+  const [groupedChatHistory, setGroupedChatHistory] = useState<Array<{ thread_id: string; messages: Array<{ id: string; role: "user" | "assistant"; content: string; created_at: string }>; last_updated: string }>>([])
+  const [isVoiceInput, setIsVoiceInput] = useState(false)
+  const recognitionRef = useRef<any>(null)
+  const synthRef = useRef<SpeechSynthesis | null>(null)
+  const responseTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const [baseColor, setBaseColor] = useState<[number, number, number]>([0.906, 0.541, 0.325]) // #e78a53 in RGB normalized
   const [glowColor, setGlowColor] = useState<[number, number, number]>([0.906, 0.541, 0.325]) // #e78a53 in RGB normalized
@@ -32,10 +48,330 @@ export default function Features() {
     setDark(theme === "dark" ? 1 : 0)
   }, [theme])
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter") {
+  // Prepare a chat thread and load current user
+  useEffect(() => {
+    setThreadId((typeof crypto !== "undefined" && (crypto as any).randomUUID?.()) || `thread-${Date.now()}`)
+    const loadUser = async () => {
+      try {
+        const { data } = await supabase.auth.getUser()
+        setCurrentUser(data?.user || null)
+        if (data?.user) {
+          loadChatHistory(data.user.id)
+        }
+      } catch (_) {
+        setCurrentUser(null)
+      }
+    }
+    loadUser()
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      setCurrentUser(session?.user || null)
+      if (session?.user) {
+        loadChatHistory(session.user.id)
+      }
+    })
+    return () => sub?.subscription?.unsubscribe()
+  }, [])
+
+  const loadChatHistory = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: true })
+      
+      if (error) {
+        console.error('Error loading chat history:', error)
+        return
+      }
+      
+      setChatHistory(data || [])
+      
+      // Group messages by thread_id
+      const grouped = (data || []).reduce((acc: any, message: any) => {
+        const threadId = message.thread_id
+        if (!acc[threadId]) {
+          acc[threadId] = {
+            thread_id: threadId,
+            messages: [],
+            last_updated: message.created_at
+          }
+        }
+        acc[threadId].messages.push(message)
+        // Update last_updated to the most recent message
+        if (new Date(message.created_at) > new Date(acc[threadId].last_updated)) {
+          acc[threadId].last_updated = message.created_at
+        }
+        return acc
+      }, {})
+      
+      // Convert to array and sort by last_updated (most recent first)
+      const groupedArray = Object.values(grouped).sort((a: any, b: any) => 
+        new Date(b.last_updated).getTime() - new Date(a.last_updated).getTime()
+      ) as Array<{ thread_id: string; messages: Array<{ id: string; role: "user" | "assistant"; content: string; created_at: string }>; last_updated: string }>
+      
+      setGroupedChatHistory(groupedArray)
+    } catch (err) {
+      console.error('Error loading chat history:', err)
+    }
+  }
+
+  // Prevent body scroll when popup is open
+  useEffect(() => {
+    if (isPopupOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = 'unset'
+    }
+    
+    // Cleanup on unmount
+    return () => {
+      document.body.style.overflow = 'unset'
+    }
+  }, [isPopupOpen])
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      // Scroll within the chat container only, not the entire page
+      const chatContainer = messagesEndRef.current.closest('.overflow-y-auto')
+      if (chatContainer) {
+        chatContainer.scrollTop = chatContainer.scrollHeight
+      }
+    }
+  }, [messages])
+
+  // Initialize speech recognition and synthesis
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // Initialize speech recognition
+      if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+        recognitionRef.current = new SpeechRecognition()
+        recognitionRef.current.continuous = false
+        recognitionRef.current.interimResults = false
+        recognitionRef.current.lang = 'en-IN' // Changed to Indian English
+
+        recognitionRef.current.onresult = (event: any) => {
+          const transcript = event.results[0][0].transcript
+          setInputValue(transcript)
+          setIsListening(false)
+          setIsVoiceInput(true) // Mark as voice input
+          
+          // Auto-send after 2 seconds of silence
+          if (responseTimeoutRef.current) {
+            clearTimeout(responseTimeoutRef.current)
+          }
+          responseTimeoutRef.current = setTimeout(() => {
+            if (transcript.trim()) {
+              handleAsk()
+            }
+          }, 2000)
+        }
+
+        recognitionRef.current.onerror = () => {
+          setIsListening(false)
+          if (responseTimeoutRef.current) {
+            clearTimeout(responseTimeoutRef.current)
+          }
+        }
+
+        recognitionRef.current.onend = () => {
+          setIsListening(false)
+        }
+      }
+
+      // Initialize speech synthesis and load voices
+      synthRef.current = window.speechSynthesis
+      
+      // Load voices (they might not be available immediately)
+      const loadVoices = () => {
+        if (synthRef.current) {
+          const voices = synthRef.current.getVoices()
+          console.log('Available voices:', voices.map(v => `${v.name} (${v.lang})`))
+        }
+      }
+      
+      // Load voices immediately and when they become available
+      loadVoices()
+      synthRef.current.onvoiceschanged = loadVoices
+    }
+  }, [])
+
+  const handleKeyDown = async (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
-      setInputValue("")
+      setIsVoiceInput(false) // Ensure text input is not marked as voice
+      await handleAsk()
+    }
+  }
+
+  const handleSendClick = async () => {
+    setIsVoiceInput(false) // Ensure text input is not marked as voice
+    await handleAsk()
+  }
+
+  const loadConversation = (threadId: string) => {
+    const conversation = groupedChatHistory.find(group => group.thread_id === threadId)
+    if (conversation) {
+      setMessages(conversation.messages)
+      setThreadId(threadId)
+    }
+  }
+
+  const startNewChat = () => {
+    setMessages([])
+    setThreadId((typeof crypto !== "undefined" && (crypto as any).randomUUID?.()) || `thread-${Date.now()}`)
+    setAiError("")
+  }
+
+  const handleAsk = async () => {
+    const prompt = inputValue.trim()
+    if (!prompt) return
+    if (!currentUser) {
+      window.location.href = "/login"
+      return
+    }
+    
+    // Clear input and add user message immediately
+    setInputValue("")
+    setAiError("")
+    const userMsg = { id: `${Date.now()}-u`, role: "user" as const, content: prompt }
+    setMessages((prev) => [...prev, userMsg])
+    
+    setAiLoading(true)
+    try {
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        const more = typeof data?.details === "string" ? data.details : JSON.stringify(data?.details)
+        setAiError((data?.error || "Failed to get response") + (more ? `: ${more}` : ""))
+      } else {
+        const botMsg = { id: `${Date.now()}-a`, role: "assistant" as const, content: data?.reply || "" }
+        setMessages((prev) => [...prev, botMsg])
+        void saveMessagesToSupabase([userMsg, botMsg]).catch(() => {})
+        // Only speak if the input was from voice
+        if (isVoiceInput) {
+          speakText(data?.reply || "")
+        }
+        // Reload chat history after new message
+        if (currentUser) {
+          loadChatHistory(currentUser.id)
+        }
+      }
+    } catch (e: any) {
+      setAiError(e?.message || "Unexpected error")
+    } finally {
+      setAiLoading(false)
+      setIsVoiceInput(false) // Reset voice input flag
+    }
+  }
+
+  const saveMessagesToSupabase = async (msgs: Array<{ id: string; role: "user" | "assistant"; content: string }>) => {
+    if (!currentUser) return
+    try {
+      const rows = msgs.map((m) => ({
+        thread_id: threadId,
+        user_id: currentUser.id,
+        email: currentUser.email,
+        full_name: currentUser.user_metadata?.full_name || null,
+        role: m.role,
+        content: m.content,
+      }))
+      await supabase.from("chat_messages").insert(rows)
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn("Failed to save chat_messages:", err)
+    }
+  }
+
+  const startListening = () => {
+    if (recognitionRef.current && !isListening) {
+      setIsListening(true)
+      recognitionRef.current.start()
+    }
+  }
+
+  const stopListening = () => {
+    if (recognitionRef.current && isListening) {
+      recognitionRef.current.stop()
+      setIsListening(false)
+      // Clear any pending auto-response
+      if (responseTimeoutRef.current) {
+        clearTimeout(responseTimeoutRef.current)
+      }
+    }
+  }
+
+  const speakText = (text: string) => {
+    if (synthRef.current && text) {
+      // Stop any current speech
+      synthRef.current.cancel()
+      
+      const utterance = new SpeechSynthesisUtterance(text)
+      utterance.rate = 1.0 // Normal speed
+      utterance.pitch = 1
+      utterance.volume = 0.8
+      
+      // Get all available voices
+      const voices = synthRef.current.getVoices()
+      console.log('All voices:', voices.map(v => `${v.name} (${v.lang})`))
+      
+      // Filter only female voices
+      const femaleVoices = voices.filter(voice => 
+        voice.name.toLowerCase().includes('female') ||
+        voice.name.toLowerCase().includes('woman') ||
+        voice.name.toLowerCase().includes('girl') ||
+        voice.name.toLowerCase().includes('samantha') ||
+        voice.name.toLowerCase().includes('karen') ||
+        voice.name.toLowerCase().includes('susan') ||
+        voice.name.toLowerCase().includes('zira') ||
+        voice.name.toLowerCase().includes('hazel') ||
+        voice.name.toLowerCase().includes('priya') ||
+        voice.name.toLowerCase().includes('neerja') ||
+        voice.name.toLowerCase().includes('linda') ||
+        voice.name.toLowerCase().includes('melissa') ||
+        voice.name.toLowerCase().includes('victoria') ||
+        voice.name.toLowerCase().includes('serena') ||
+        voice.name.toLowerCase().includes('tessa') ||
+        voice.name.toLowerCase().includes('veena') ||
+        voice.name.toLowerCase().includes('rekha')
+      )
+      
+      console.log('Female voices found:', femaleVoices.map(v => `${v.name} (${v.lang})`))
+      
+      if (femaleVoices.length > 0) {
+        // Prefer Indian female voices first
+        const indianFemale = femaleVoices.find(voice => 
+          voice.name.toLowerCase().includes('priya') ||
+          voice.name.toLowerCase().includes('neerja') ||
+          voice.name.toLowerCase().includes('veena') ||
+          voice.name.toLowerCase().includes('rekha') ||
+          (voice.lang === 'en-IN' || voice.lang.includes('en-IN'))
+        )
+        
+        utterance.voice = indianFemale || femaleVoices[0]
+        console.log('Using female voice:', utterance.voice?.name)
+      } else {
+        console.log('No female voices found, using default')
+      }
+      
+      utterance.onstart = () => setIsSpeaking(true)
+      utterance.onend = () => setIsSpeaking(false)
+      utterance.onerror = () => setIsSpeaking(false)
+      
+      synthRef.current.speak(utterance)
+    }
+  }
+
+  const stopSpeaking = () => {
+    if (synthRef.current) {
+      synthRef.current.cancel()
+      setIsSpeaking(false)
     }
   }
 
@@ -333,28 +669,72 @@ export default function Features() {
                 style={{ transition: "all 0s ease-in-out" }}
               >
                 <div className="flex flex-col gap-4">
-                  <h3 className="text-2xl leading-none font-semibold tracking-tight">Smart AI Agents</h3>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-2xl leading-none font-semibold tracking-tight">YUKTI</h3>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={startNewChat}
+                        className="px-3 py-2 bg-zinc-700 hover:bg-zinc-600 text-white text-sm font-medium rounded-lg transition-colors"
+                      >
+                        New Chat
+                      </button>
+                      <button
+                        onClick={() => setIsPopupOpen(true)}
+                        className="px-4 py-2 bg-[#e78a53] hover:bg-[#e78a53]/90 text-white text-sm font-medium rounded-lg transition-colors"
+                      >
+                        Open YUKTI in Pop-up
+                      </button>
+                    </div>
+                  </div>
                   <div className="text-md text-muted-foreground flex flex-col gap-2 text-sm">
                     <p className="max-w-[460px]">
-                      AI assistants trained on human-researched data to provide reliable answers, personalized guidance, and accurate career advice.
+                      Your Ultimate Knowledge & Thoughtful Intelligence - AI assistants trained on human-researched data to provide reliable answers, personalized guidance, and accurate career advice.
                     </p>
                   </div>
                 </div>
                 <div className="flex grow items-center justify-center select-none relative min-h-[300px] p-4">
                   <div className="w-full max-w-lg">
-                    <div className="relative rounded-2xl border border-white/10 bg-black/20 dark:bg-white/5 backdrop-blur-sm">
-                      <div className="p-4">
-                        <textarea
-                          className="w-full min-h-[100px] bg-transparent border-none text-white placeholder:text-white/50 resize-none focus:outline-none text-base leading-relaxed"
-                          placeholder="Search the web..."
-                          value={inputValue}
-                          onChange={(e) => setInputValue(e.target.value)}
-                          onKeyDown={handleKeyDown}
-                        />
+                    <div className="relative rounded-2xl border border-white/10 bg-black/20 dark:bg-white/5 backdrop-blur-sm flex flex-col h-[400px]">
+                      {/* Chat messages area */}
+                      <div className="flex-1 p-4 overflow-y-auto space-y-3">
+                        {!currentUser && (
+                          <div className="text-sm text-white/70 text-center">Please log in to use YUKTI.</div>
+                        )}
+                        {messages.map((m) => (
+                          <div key={m.id} className={`flex ${m.role === "assistant" ? "justify-start" : "justify-end"}`}>
+                            <div className={`${m.role === "assistant" ? "bg-white/10" : "bg-[#e78a53] text-black"} max-w-[80%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap`}>
+                              {m.content}
+                            </div>
+                          </div>
+                        ))}
+                        {aiError && (
+                          <div className="text-xs text-red-400 whitespace-pre-wrap">{aiError}</div>
+                        )}
+                        <div ref={messagesEndRef} />
                       </div>
-                      <div className="flex items-center justify-between px-4 pb-4">
+                      
+                      {/* Input area at bottom */}
+                      <div className="p-4 border-t border-white/10">
                         <div className="flex items-center gap-3">
-                          <button className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors">
+                          <textarea
+                            className="flex-1 min-h-[44px] max-h-[120px] bg-transparent border-none text-white placeholder:text-white/50 resize-none focus:outline-none text-sm leading-relaxed"
+                            placeholder={currentUser ? "Ask YUKTI..." : "Log in to chat with YUKTI"}
+                            value={inputValue}
+                            onChange={(e) => setInputValue(e.target.value)}
+                            onKeyDown={handleKeyDown}
+                            disabled={!currentUser || aiLoading}
+                          />
+                          {/* Voice input button */}
+                          <button
+                            onClick={isListening ? stopListening : startListening}
+                            disabled={!currentUser || aiLoading}
+                            className={`p-2 rounded-full transition-colors flex-shrink-0 ${
+                              isListening 
+                                ? "bg-red-500 hover:bg-red-600 text-white" 
+                                : "bg-white/10 hover:bg-white/20 text-white/70"
+                            } disabled:opacity-50 disabled:cursor-not-allowed`}
+                            title={isListening ? "Stop listening" : "Start voice input"}
+                          >
                             <svg
                               xmlns="http://www.w3.org/2000/svg"
                               width="16"
@@ -365,12 +745,18 @@ export default function Features() {
                               strokeWidth="2"
                               strokeLinecap="round"
                               strokeLinejoin="round"
-                              className="text-white/70"
                             >
-                              <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+                              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                              <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                              <line x1="12" y1="19" x2="12" y2="23"></line>
+                              <line x1="8" y1="23" x2="16" y2="23"></line>
                             </svg>
                           </button>
-                          <button className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#e78a53] hover:bg-[#e78a53]/90 transition-colors text-white font-medium">
+                          <button
+                            onClick={handleSendClick}
+                            disabled={!currentUser || aiLoading || !inputValue.trim()}
+                            className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#e78a53] hover:bg-[#e78a53]/90 transition-colors text-white font-medium disabled:opacity-60 disabled:cursor-not-allowed flex-shrink-0"
+                          >
                             <svg
                               xmlns="http://www.w3.org/2000/svg"
                               width="16"
@@ -386,26 +772,24 @@ export default function Features() {
                               <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path>
                               <path d="M2 12h20"></path>
                             </svg>
-                            Search
+                            {aiLoading ? "Thinking..." : "Ask"}
                           </button>
                         </div>
-                        <button className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors">
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            className="text-white/70"
-                          >
-                            <path d="m22 2-7 20-4-9-9-4Z"></path>
-                            <path d="M22 2 11 13"></path>
-                          </svg>
-                        </button>
+                        {/* Voice output controls */}
+                        {isSpeaking && (
+                          <div className="mt-2 flex items-center gap-2 text-xs text-white/70">
+                            <div className="flex items-center gap-1">
+                              <div className="w-2 h-2 bg-[#e78a53] rounded-full animate-pulse"></div>
+                              <span>YUKTI is speaking...</span>
+                            </div>
+                            <button
+                              onClick={stopSpeaking}
+                              className="text-red-400 hover:text-red-300 underline"
+                            >
+                              Stop
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -451,6 +835,204 @@ export default function Features() {
           </div>
         </FollowerPointerCard>
       </motion.div>
+
+      {/* YUKTI Popup Modal */}
+      {isPopupOpen && (
+        <div 
+          className="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setIsPopupOpen(false)
+            }
+          }}
+        >
+          <div 
+            className="bg-zinc-900 rounded-2xl border border-zinc-800 w-full max-w-4xl h-[80vh] flex overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Left Sidebar */}
+            <div className="w-80 bg-zinc-800/50 border-r border-zinc-700 p-6 flex flex-col">
+              {/* Close Button */}
+              <button
+                onClick={() => setIsPopupOpen(false)}
+                className="absolute top-4 right-4 w-8 h-8 bg-zinc-700 hover:bg-zinc-600 rounded-full flex items-center justify-center text-white transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+              
+              {/* YUKTI Title */}
+              <div className="mb-6">
+                <h2 className="text-3xl font-bold text-[#e78a53] mb-2">YUKTI</h2>
+                <p className="text-zinc-400 text-sm">Your Ultimate Knowledge & Thoughtful Intelligence</p>
+              </div>
+              
+              {/* User Info */}
+              {currentUser && (
+                <div className="mb-6 p-4 bg-zinc-700/50 rounded-lg">
+                  <div className="text-white font-medium mb-1">
+                    {currentUser.user_metadata?.full_name || 'User'}
+                  </div>
+                  <div className="text-zinc-400 text-sm mb-2">
+                    {currentUser.email}
+                  </div>
+                  <div className="text-zinc-500 text-xs">
+                    {new Date().toLocaleDateString('en-IN', {
+                      weekday: 'long',
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric'
+                    })}
+                  </div>
+                </div>
+              )}
+              
+              {/* Chat History */}
+              <div className="flex-1 overflow-hidden">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-white font-medium">Chat History</h3>
+                  <button
+                    onClick={startNewChat}
+                    className="text-[#e78a53] hover:text-[#e78a53]/80 text-sm font-medium transition-colors"
+                  >
+                    + New Chat
+                  </button>
+                </div>
+                <div 
+                  className="h-full overflow-y-auto space-y-2 scrollbar-thin scrollbar-thumb-zinc-600 scrollbar-track-zinc-800"
+                  onWheel={(e) => e.stopPropagation()}
+                >
+                  {groupedChatHistory.length === 0 ? (
+                    <p className="text-zinc-500 text-sm">No chat history yet</p>
+                  ) : (
+                    groupedChatHistory.map((conversation, index) => {
+                      const firstUserMessage = conversation.messages.find(msg => msg.role === 'user')
+                      const lastMessage = conversation.messages[conversation.messages.length - 1]
+                      const isActive = conversation.thread_id === threadId
+                      
+                      return (
+                        <div 
+                          key={conversation.thread_id} 
+                          className={`p-3 rounded-lg cursor-pointer transition-colors ${
+                            isActive 
+                              ? 'bg-[#e78a53]/20 border border-[#e78a53]/30' 
+                              : 'bg-zinc-700/30 hover:bg-zinc-700/50'
+                          }`}
+                          onClick={() => loadConversation(conversation.thread_id)}
+                        >
+                          <div className="text-xs text-zinc-400 mb-1">
+                            {new Date(conversation.last_updated).toLocaleDateString('en-IN', {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </div>
+                          <div className="text-white text-sm">
+                            <div className="font-medium mb-1">
+                              {firstUserMessage && firstUserMessage.content.length > 50 
+                                ? `${firstUserMessage.content.substring(0, 50)}...` 
+                                : firstUserMessage?.content || 'New conversation'
+                              }
+                            </div>
+                            <div className="text-zinc-400 text-xs">
+                              {conversation.messages.length} message{conversation.messages.length !== 1 ? 's' : ''}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            {/* Right Chat Area */}
+            <div className="flex-1 flex flex-col">
+              {/* Chat Messages */}
+              <div 
+                className="flex-1 p-6 overflow-y-auto space-y-4 scrollbar-thin scrollbar-thumb-zinc-600 scrollbar-track-zinc-800"
+                onWheel={(e) => e.stopPropagation()}
+              >
+                {messages.map((m) => (
+                  <div key={m.id} className={`flex ${m.role === "assistant" ? "justify-start" : "justify-end"}`}>
+                    <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+                      m.role === "assistant" 
+                        ? "bg-zinc-700 text-white" 
+                        : "bg-[#e78a53] text-white"
+                    }`}>
+                      <div className="text-sm whitespace-pre-wrap">{m.content}</div>
+                    </div>
+                  </div>
+                ))}
+                {aiError && (
+                  <div className="text-red-400 text-sm p-3 bg-red-500/10 rounded-lg">
+                    {aiError}
+                  </div>
+                )}
+              </div>
+              
+              {/* Input Area */}
+              <div className="p-6 border-t border-zinc-700">
+                <div className="flex items-center gap-3">
+                  <textarea
+                    className="flex-1 min-h-[44px] max-h-[120px] bg-zinc-800 border border-zinc-600 rounded-lg text-white placeholder:text-zinc-400 resize-none focus:outline-none focus:border-[#e78a53] text-sm leading-relaxed px-3 py-2"
+                    placeholder={currentUser ? "Ask YUKTI" : "Log in to chat with YUKTI"}
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    disabled={!currentUser || aiLoading}
+                  />
+                  {/* Voice input button */}
+                  <button
+                    onClick={isListening ? stopListening : startListening}
+                    disabled={!currentUser || aiLoading}
+                    className={`p-2 rounded-full transition-colors flex-shrink-0 ${
+                      isListening 
+                        ? "bg-red-500 hover:bg-red-600 text-white" 
+                        : "bg-zinc-700 hover:bg-zinc-600 text-white"
+                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    title={isListening ? "Stop listening" : "Start voice input"}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                      <line x1="12" y1="19" x2="12" y2="23"></line>
+                      <line x1="8" y1="23" x2="16" y2="23"></line>
+                    </svg>
+                  </button>
+                  <button
+                    onClick={handleSendClick}
+                    disabled={!currentUser || aiLoading || !inputValue.trim()}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#e78a53] hover:bg-[#e78a53]/90 transition-colors text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                    </svg>
+                    {aiLoading ? "Thinking..." : "Send"}
+                  </button>
+                </div>
+                {/* Voice output controls */}
+                {isSpeaking && (
+                  <div className="mt-2 flex items-center gap-2 text-xs text-zinc-400">
+                    <div className="flex items-center gap-1">
+                      <div className="w-2 h-2 bg-[#e78a53] rounded-full animate-pulse"></div>
+                      <span>YUKTI is speaking...</span>
+                    </div>
+                    <button
+                      onClick={stopSpeaking}
+                      className="text-red-400 hover:text-red-300 underline"
+                    >
+                      Stop
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   )
 }

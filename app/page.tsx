@@ -22,6 +22,17 @@ export default function Home() {
     root.classList.add("dark")
   }, [])
 
+  // Prevent auto-scrolling to sections on page load
+  useEffect(() => {
+    // Scroll to top on initial page load
+    window.scrollTo(0, 0)
+    
+    // Remove hash from URL if present to prevent auto-scrolling
+    if (window.location.hash) {
+      window.history.replaceState(null, '', window.location.pathname)
+    }
+  }, [])
+
   useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 100)

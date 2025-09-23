@@ -28,7 +28,7 @@ export default function Hero() {
               transition={{ duration: 0.5 }}
               className="mb-8"
             >
-              <Badge variant="secondary">
+              <Badge variant="secondary" className="bg-[#e78a53] hover:bg-[#e78a53]/90 text-black border-[#e78a53]">
                 <Sparkles className="h-4 w-4" />
                 Yukti Bharat - A career compass for India's Youth
               </Badge>
@@ -54,7 +54,7 @@ export default function Hero() {
               transition={{ duration: 0.5, delay: 0.2 }}
               className="mx-auto mb-12 max-w-2xl text-lg text-muted-foreground"
             >
-              Still confused after Class 10 or 12? Discover the right stream, college,
+              Still confused after Class 12? Discover the right stream, college,
               and career opportunities across Jammu & Kashmir.
             </motion.p>
 
