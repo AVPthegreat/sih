@@ -165,7 +165,15 @@ export default function Features() {
           setIsListening(false)
           setIsVoiceInput(true) // Mark as voice input
           
-          // Auto-send after 2 seconds of silence
+          // Check if it's the special command
+          const normalizedTranscript = transcript.toUpperCase().trim()
+          if (normalizedTranscript === "YUKTI TELL US ABOUT YOURSELF") {
+            // Handle special command immediately
+            handleAsk()
+            return
+          }
+          
+          // Auto-send after 2 seconds of silence for regular commands
           if (responseTimeoutRef.current) {
             clearTimeout(responseTimeoutRef.current)
           }
@@ -266,6 +274,18 @@ export default function Features() {
     }
   }
 
+  // Function to play Yukti's special audio
+  const playYuktiAudio = () => {
+    try {
+      const audio = new Audio('/yukti-voice.mp3')
+      audio.play().catch(error => {
+        console.error('Error playing Yukti audio:', error)
+      })
+    } catch (error) {
+      console.error('Error creating audio element:', error)
+    }
+  }
+
   const handleAsk = async () => {
     const prompt = inputValue.trim()
     if (!prompt) return
@@ -274,6 +294,33 @@ export default function Features() {
       return
     }
     
+    // Check for special command
+    const normalizedPrompt = prompt.toUpperCase().trim()
+    if (normalizedPrompt === "YUKTI TELL US ABOUT YOURSELF") {
+      // Clear input and add user message immediately
+      setInputValue("")
+      setAiError("")
+      const userMsg = { id: `${Date.now()}-u`, role: "user" as const, content: prompt }
+      setMessages((prev) => [...prev, userMsg])
+      
+      // Add a special response message
+      const botMsg = { id: `${Date.now()}-a`, role: "assistant" as const, content: "Let me introduce myself..." }
+      setMessages((prev) => [...prev, botMsg])
+      
+      // Play the special audio
+      playYuktiAudio()
+      
+      // Save to Supabase
+      void saveMessagesToSupabase([userMsg, botMsg]).catch(() => {})
+      
+      // Reload chat history
+      if (currentUser) {
+        loadChatHistory(currentUser.id)
+      }
+      return
+    }
+    
+    // Regular chat flow for other messages
     // Clear input and add user message immediately
     setInputValue("")
     setAiError("")
