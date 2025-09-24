@@ -18,8 +18,6 @@ export default function Features() {
   const { theme } = useTheme()
   const [isHovering, setIsHovering] = useState(false)
   const [isCliHovering, setIsCliHovering] = useState(false)
-  const [isFeature3Hovering, setIsFeature3Hovering] = useState(false)
-  const [isFeature4Hovering, setIsFeature4Hovering] = useState(false)
   const [inputValue, setInputValue] = useState("")
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState<string>("")
@@ -48,6 +46,7 @@ export default function Features() {
     setDark(theme === "dark" ? 1 : 0)
   }, [theme])
 
+
   // Prepare a chat thread and load current user
   useEffect(() => {
     setThreadId((typeof crypto !== "undefined" && (crypto as any).randomUUID?.()) || `thread-${Date.now()}`)
@@ -70,6 +69,14 @@ export default function Features() {
       }
     })
     return () => sub?.subscription?.unsubscribe()
+  }, [])
+
+  // Initialize speech synthesis
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      synthRef.current = window.speechSynthesis
+      console.log('Speech synthesis initialized')
+    }
   }, [])
 
   const loadChatHistory = async (userId: string) => {
@@ -228,8 +235,6 @@ export default function Features() {
   // Helper function to send message to Yukti via n8n webhook
   const sendMessageToYukti = async (userId: string, userMessage: string) => {
     try {
-      console.log('Sending to Yukti webhook:', { userId, userMessage })
-      
       const response = await fetch("https://ebelthomasseiko.app.n8n.cloud/webhook/9a773b80-38c9-455f-bb27-6a9295197519", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -239,26 +244,21 @@ export default function Features() {
         })
       })
       
-      console.log('Webhook response status:', response.status)
-      console.log('Webhook response headers:', response.headers)
-      
       if (!response.ok) {
         // Try to get error details from response
         let errorDetails = `HTTP error! status: ${response.status}`
         try {
           const errorText = await response.text()
-          console.log('Error response body:', errorText)
           if (errorText) {
             errorDetails += ` - ${errorText}`
           }
         } catch (e) {
-          console.log('Could not read error response:', e)
+          // Could not read error response
         }
         throw new Error(errorDetails)
       }
       
-      const data = await response.json()
-      console.log('Webhook response data:', data)
+      const data = await response.text()
       return data
     } catch (error) {
       console.error('sendMessageToYukti error:', error)
@@ -282,16 +282,15 @@ export default function Features() {
     
     setAiLoading(true)
     try {
-      // Try n8n webhook first
       const data = await sendMessageToYukti(currentUser.id, prompt)
       
-      if (data?.reply) {
-        const botMsg = { id: `${Date.now()}-a`, role: "assistant" as const, content: data.reply }
+      if (data) {
+        const botMsg = { id: `${Date.now()}-a`, role: "assistant" as const, content: data }
         setMessages((prev) => [...prev, botMsg])
         void saveMessagesToSupabase([userMsg, botMsg]).catch(() => {})
         // Only speak if the input was from voice
         if (isVoiceInput) {
-          speakText(data.reply)
+          speakText(data)
         }
         // Reload chat history after new message
         if (currentUser) {
@@ -301,57 +300,8 @@ export default function Features() {
         setAiError("No reply received from Yukti")
       }
     } catch (e: any) {
-      console.error('Webhook failed, trying fallback:', e)
-      
-      // Fallback to old Gemini API if webhook fails
-      try {
-        console.log('Attempting fallback to Gemini API...')
-        const res = await fetch("/api/ai", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt }),
-        })
-        const fallbackData = await res.json()
-        
-        if (res.ok && fallbackData?.reply) {
-          const botMsg = { id: `${Date.now()}-a`, role: "assistant" as const, content: fallbackData.reply }
-          setMessages((prev) => [...prev, botMsg])
-          void saveMessagesToSupabase([userMsg, botMsg]).catch(() => {})
-          // Only speak if the input was from voice
-          if (isVoiceInput) {
-            speakText(fallbackData.reply)
-          }
-          // Reload chat history after new message
-          if (currentUser) {
-            loadChatHistory(currentUser.id)
-          }
-          // Show a note that we used fallback
-          setAiError("⚠️ Yukti webhook is temporarily unavailable. Using backup system.")
-        } else {
-          setAiError(`Failed to get response: ${e?.message || 'Unknown error'}`)
-        }
-      } catch (fallbackError: any) {
-        console.error('Fallback also failed:', fallbackError)
-        
-        // Ultimate fallback - provide a simple response
-        const fallbackReply = `Hi there! 👋 I'm Yukti, your career guidance assistant. I'm currently experiencing some technical difficulties, but I'm here to help you explore career paths and opportunities. What would you like to know about your future career?`
-        
-        const botMsg = { id: `${Date.now()}-a`, role: "assistant" as const, content: fallbackReply }
-        setMessages((prev) => [...prev, botMsg])
-        void saveMessagesToSupabase([userMsg, botMsg]).catch(() => {})
-        
-        // Only speak if the input was from voice
-        if (isVoiceInput) {
-          speakText(fallbackReply)
-        }
-        
-        // Reload chat history after new message
-        if (currentUser) {
-          loadChatHistory(currentUser.id)
-        }
-        
-        setAiError("⚠️ External services are temporarily unavailable. Using basic responses.")
-      }
+      console.error('Yukti webhook failed:', e)
+      setAiError(`Failed to get response from Yukti: ${e?.message || 'Unknown error'}`)
     } finally {
       setAiLoading(false)
       setIsVoiceInput(false) // Reset voice input flag
@@ -406,7 +356,6 @@ export default function Features() {
       
       // Get all available voices
       const voices = synthRef.current.getVoices()
-      console.log('All voices:', voices.map(v => `${v.name} (${v.lang})`))
       
       // Filter only female voices
       const femaleVoices = voices.filter(voice => 
@@ -429,8 +378,6 @@ export default function Features() {
         voice.name.toLowerCase().includes('rekha')
       )
       
-      console.log('Female voices found:', femaleVoices.map(v => `${v.name} (${v.lang})`))
-      
       if (femaleVoices.length > 0) {
         // Prefer Indian female voices first
         const indianFemale = femaleVoices.find(voice => 
@@ -442,9 +389,6 @@ export default function Features() {
         )
         
         utterance.voice = indianFemale || femaleVoices[0]
-        console.log('Using female voice:', utterance.voice?.name)
-      } else {
-        console.log('No female voices found, using default')
       }
       
       utterance.onstart = () => setIsSpeaking(true)
@@ -461,6 +405,7 @@ export default function Features() {
       setIsSpeaking(false)
     }
   }
+
 
   return (
     <section id="features" className="text-foreground relative overflow-hidden py-12 sm:py-24 md:py-32">
@@ -743,8 +688,6 @@ export default function Features() {
               {/* Smart Components */}
               <motion.div
                 className="group border-secondary/40 text-card-foreground relative col-span-12 flex flex-col overflow-hidden rounded-xl border-2 p-6 shadow-xl transition-all ease-in-out md:col-span-6 xl:col-span-6 xl:col-start-2"
-                onMouseEnter={() => setIsFeature3Hovering(true)}
-                onMouseLeave={() => setIsFeature3Hovering(false)}
                 initial={{ opacity: 0, y: 50 }}
                 animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 50 }}
                 transition={{ duration: 0.5, delay: 1.0 }}
@@ -859,8 +802,8 @@ export default function Features() {
                               <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path>
                               <path d="M2 12h20"></path>
                             </svg>
-                            {aiLoading ? "Thinking..." : "Ask"}
-                          </button>
+                          {aiLoading ? "Thinking..." : "Ask"}
+                        </button>
                         </div>
                         {/* Voice output controls */}
                         {isSpeaking && (
@@ -886,8 +829,6 @@ export default function Features() {
               {/* Dynamic Layouts */}
               <motion.div
                 className="group border-secondary/40 text-card-foreground relative col-span-12 flex flex-col overflow-hidden rounded-xl border-2 p-6 shadow-xl transition-all ease-in-out md:col-span-6 xl:col-span-6 xl:col-start-8"
-                onMouseEnter={() => setIsFeature4Hovering(true)}
-                onMouseLeave={() => setIsFeature4Hovering(false)}
                 initial={{ opacity: 0, y: 50 }}
                 animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 50 }}
                 transition={{ duration: 0.5, delay: 1.0 }}
